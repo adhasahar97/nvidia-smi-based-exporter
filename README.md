@@ -10,15 +10,54 @@ A Docker Compose setup for monitoring NVIDIA GPUs using Prometheus and Grafana.
 
 ## Prerequisites
 
-- Linux host with NVIDIA GPU(s)
+- NVIDIA GPU(s) with drivers installed
 - Docker and Docker Compose
-- NVIDIA drivers installed on the host
+- **Linux**: NVIDIA drivers on the host
+- **Windows**: Docker Desktop with WSL2 backend
 
 ## Quick Start
+
+### Linux
+
+All three services run in Docker:
 
 ```bash
 git clone <repo-url>
 cd nvidia-smi-based-exporter
+docker-compose up -d
+```
+
+### Windows
+
+On Windows, the nvidia_gpu_exporter runs natively while Prometheus and Grafana run in Docker.
+
+**Step 1: Download and run the exporter**
+
+Download `nvidia_gpu_exporter_windows_x86_64.zip` from the [releases page](https://github.com/utkuozdemir/nvidia_gpu_exporter/releases).
+
+```powershell
+# Extract and run
+.\nvidia_gpu_exporter.exe
+```
+
+**Step 2: Start Prometheus and Grafana**
+
+```powershell
+docker-compose -f docker-compose.windows.yml up -d
+```
+
+> **Tip**: To run the exporter as a Windows service, use [NSSM](https://nssm.cc/) or create a scheduled task.
+
+### Windows with WSL2 GPU Support
+
+If you have WSL2 with NVIDIA GPU support configured:
+
+1. Install [NVIDIA drivers for WSL](https://developer.nvidia.com/cuda/wsl)
+2. Install [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
+3. Use the Linux docker-compose with GPU runtime:
+
+```bash
+# In WSL2 terminal
 docker-compose up -d
 ```
 
@@ -34,7 +73,7 @@ The NVIDIA GPU Metrics dashboard is automatically provisioned and ready to use.
 
 ## Configuration
 
-### Multiple GPUs
+### Multiple GPUs (Linux)
 
 Edit `docker-compose.yml` to add additional GPU devices:
 
@@ -47,7 +86,7 @@ nvidia_gpu_exporter:
     - /dev/nvidia2:/dev/nvidia2
 ```
 
-### Library Paths
+### Library Paths (Linux)
 
 The default volume mounts assume Ubuntu/Debian paths. Adjust if your system uses different locations:
 
@@ -62,7 +101,9 @@ volumes:
 
 ### Prometheus Scrape Interval
 
-Edit `prometheus/prometheus.yml` to change the scrape interval:
+Edit the appropriate Prometheus config file:
+- Linux: `prometheus/prometheus.yml`
+- Windows: `prometheus/prometheus.windows.yml`
 
 ```yaml
 global:
@@ -71,7 +112,7 @@ global:
 
 ### Grafana Credentials
 
-Change the default admin password in `docker-compose.yml`:
+Change the default admin password in the docker-compose file:
 
 ```yaml
 environment:
@@ -82,7 +123,8 @@ environment:
 
 ```
 .
-├── docker-compose.yml
+├── docker-compose.yml              # Linux: full stack
+├── docker-compose.windows.yml      # Windows: Prometheus + Grafana only
 ├── grafana/
 │   ├── dashboards/
 │   │   └── nvidia-gpu-metrics.json
@@ -92,7 +134,8 @@ environment:
 │       └── datasources/
 │           └── datasource.yml
 └── prometheus/
-    └── prometheus.yml
+    ├── prometheus.yml              # Linux config
+    └── prometheus.windows.yml      # Windows config (uses host.docker.internal)
 ```
 
 ## Dashboard Metrics
@@ -110,7 +153,7 @@ The included Grafana dashboard (ID: 14574) displays:
 
 ## Troubleshooting
 
-### Exporter not starting
+### Linux: Exporter not starting
 
 Verify NVIDIA drivers are installed:
 ```bash
@@ -122,20 +165,33 @@ Check if devices exist:
 ls -la /dev/nvidia*
 ```
 
-### No metrics in Prometheus
+### Linux: Permission errors
 
-Check if the exporter is accessible:
+Ensure Docker has access to GPU devices:
 ```bash
+sudo usermod -aG video $USER
+```
+
+### Windows: Exporter not accessible from Docker
+
+Ensure the exporter is running and listening:
+```powershell
 curl http://localhost:9835/metrics
 ```
 
+Check Windows Firewall allows connections on port 9835.
+
+### No metrics in Prometheus
+
 Verify Prometheus targets at http://localhost:9090/targets
 
-### Permission errors
-
-Ensure Docker has access to GPU devices. You may need to run:
+Check if the exporter is accessible:
 ```bash
-sudo usermod -aG video $USER
+# Linux
+curl http://localhost:9835/metrics
+
+# Windows (from Docker)
+# The target should be host.docker.internal:9835
 ```
 
 ## License
